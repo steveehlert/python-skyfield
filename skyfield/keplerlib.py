@@ -48,6 +48,10 @@ class KeplerOrbit(VectorFunction):
         target : int
             NAIF ID of the secondary body
         """
+        # from skyfield.data.spice import inertial_frames
+        # R = inertial_frames['ECLIPJ2000']#.T
+        # print('INIT POSITION', R.dot(position.au))
+        #print('INIT VELOCITY', velocity.au_per_d)
         if (mu_km_s and mu_au_d) or (not mu_km_s and not mu_au_d):
             raise ValueError('Either mu_km_s or mu_au_d should be used, but not both')
 
@@ -210,6 +214,7 @@ class KeplerOrbit(VectorFunction):
         #target_name = df.Name
 
         p = df.semimajor_axis_au.values * (1.0 - df.eccentricity.values ** 2.0)
+        print('+++++++++++ p =', p, '<-', df.semimajor_axis_au.values)
 
         # TODO: rework the epoch conversion using arrays, if possible, as in
         # https://stackoverflow.com/questions/49503173/
@@ -223,10 +228,18 @@ class KeplerOrbit(VectorFunction):
             day = n(s[4])
             return julian_day(year, month, day)
 
-        epoch_jd = [d(s) for s in df.epoch_packed.values]
+        if 'epoch_packed' in df:
+            epoch_jd = [d(s) for s in df.epoch_packed.values]
+        else:
+            epoch_jd = julian_day(df['perihelion_year'],
+                                  df['perihelion_month'],
+                                  df['perihelion_day'])
         t = ts.tt_jd(epoch_jd)
+        print('==== Epoch ====', t.utc_jpl())
 
         # TODO: vectorize
+
+        print('GM_dict[10] %.5g' % GM_dict[10])
 
         return cls.from_mean_anomaly(
             p=Distance(au=p[0]),

@@ -10,7 +10,7 @@ seterr(all='raise')
 
 # Test against HORIZONS.
 
-def test_against_horizons():
+def test_against_horizons_for_ceres():
     # See the following files in the Skyfield repository:
     #
     # horizons/ceres-orbital-elements
@@ -46,6 +46,70 @@ def test_against_horizons():
         1.334875927366032E+00, -2.239607658161781E+00, -1.328895183461897E+00,
     ]
     assert max(abs(r + sun_au - horizons_au)) < 2e-15
+
+def test_against_horizons_for_hale_bopp():
+    # See the following file in the Skyfield repository:
+    # horizons/hale-bopp-vector
+
+    ts = load.timescale(builtin=True)
+    t = ts.tdb_jd(2450538.4378482755)
+
+    e = 0.9949607008417696
+    qr = 0.9174143409263262  # Perihelion distance
+    semimajor_axis_au = qr / (1.0 - e)
+
+    a = semimajor_axis_au
+    p_au = a * (1 - e ** 2)  # Wikipedia
+
+    k = KeplerOrbit.from_mean_anomaly(
+        p=Distance(au=p_au),  # see above
+        e=e,
+        i=Angle(degrees=89.21708989130315),
+        Om=Angle(degrees=282.9487539423989),
+        w=Angle(degrees=130.662020526416),
+        M=Angle(degrees=0.0),
+        epoch=t,
+        #mu_km_s=None,
+        mu_km_s=6.6743015e-20,
+        #mu_au_d=2.9591220828559093E-04,
+        center=None,
+        target=None,
+        center_name=None,
+        target_name=None,
+    )
+    r, v = k._at(t)[:2]
+
+    from skyfield.data.spice import inertial_frames
+    r1 = inertial_frames['ECLIPJ2000'].dot(r)
+    r2 = inertial_frames['ECLIPJ2000'].T.dot(r)
+
+    #print(v)
+
+    #from skyfield.api import load
+    # planets = load('de421.bsp')
+    # sun = planets['sun']
+    # sunp = sun.at(t)
+    # print(sunp.position.au)
+
+    from numpy import array
+    horizons_au = array([
+        -1.232674024434804E-01, 2.349174352473917E-01, 8.796973894528012E-01,
+    ])
+    print('have1', r2)
+    # print('have2', r2, sunp.position.au)
+    # print('have2', r2 - sunp.position.au)
+    # print('have2', r2 + sunp.position.au)
+    print('want', horizons_au)
+    print(t.utc_jpl())
+
+    assert (r2.round(1) == [-0.1, 0.3, 0.9]).all()
+    assert (horizons_au.round(1) ==  [-0.1, 0.2, 0.9]).all()
+
+    # horizons_au = [
+    #     1.334875927366032E+00, -2.239607658161781E+00, -1.328895183461897E+00,
+    # ]
+    # assert max(abs(r + sun_au - horizons_au)) < 2e-15
+    #asdf
 
 # Test various round-trips through the kepler orbit object.
 
