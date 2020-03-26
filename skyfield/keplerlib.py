@@ -323,8 +323,9 @@ class KeplerOrbit(VectorFunction):
                              self._mu_km_s,
         )
         if self._rotation is not None:
+            raise_exception_if_it_tries_rotating
             pos = self._rotation.dot(pos)
-        # TODO: vel
+            # TODO: vel
         return pos / AU_KM, vel / AU_KM * DAY_S, None, None
 
 
