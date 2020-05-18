@@ -262,12 +262,12 @@ class EarthSatellite(VectorFunction):
 
         ephemdata = apiload(ephemfile)
         
-        sat_origin_pos = ephemdata['earth']
+        sat_origin_pos = ephemdata['earth'].at(ut)
         test_body = ephemdata[test_body_name]
         
-        sat_ecliptic = sat_origin_pos.ecliptic().au +   self.at(ut).ecliptic().au
-        test_body_ecliptic = test_body.at(ut).ecliptic().au 
-        target_ecliptic  = target_pos.ecliptic().au
+        sat_ecliptic = sat_origin_pos.ecliptic_position().au +   self.at(ut).ecliptic_position().au
+        test_body_ecliptic = test_body.at(ut).ecliptic_position().au 
+        target_ecliptic  = target_pos.ecliptic_position().au
         diff_sat_target = sat_ecliptic  - target_ecliptic
         diff_target_body = target_ecliptic - test_body_ecliptic
         #Using cross product formula of
