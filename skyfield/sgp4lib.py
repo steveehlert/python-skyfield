@@ -6,13 +6,13 @@ from numpy import (
 )
 from sgp4.api import SGP4_ERRORS, Satrec
 
-from .constants import AU_KM, DAY_S, T0, tau
+from .constants import AU_KM, DAY_S, T0, tau, ERAD
 from .functions import rot_x, rot_y, rot_z
 from .positionlib import ITRF_to_GCRS2
 from .searchlib import _find_discrete, find_maxima
 from .timelib import Timescale
 from .vectorlib import VectorFunction
-
+from .api import load as apiload
 _minutes_per_day = 1440.
 
 # Since satellite calculations are done entirely in UTC, we can display
@@ -247,6 +247,44 @@ class EarthSatellite(VectorFunction):
 
         i = jd.argsort()
         return ts.tt_jd(jd[i]), v[i]
+
+    def is_target_occulted(self, ut, target_pos, test_body_name, ephemfile = 'de421.bsp', dist_limit = ERAD/1000. + 200.):
+        """Returns a True/False as to whether or not the 
+        line of sight between the satellite position and a target position of interest
+        is occulted by a planetary body. Originally written to account for 
+        occultations of particular RA/DEC positions by the Earth. User defines the limiting distance for occultation
+        and the ephemeris file that has the target body's ephemeris included.
+        Requred inputs are the ut time of observations, the target_pos Skyfield position, and 
+        the name of the (possibly) occulting body
+
+        """
+
+
+        ephemdata = apiload(ephemfile)
+        
+        sat_origin_pos = ephemdata['earth']
+        test_body = ephemdata[test_body_name]
+        
+        sat_ecliptic = sat_origin_pos.ecliptic().au +   self.at(ut).ecliptic().au
+        test_body_ecliptic = test_body.at(ut).ecliptic().au 
+        target_ecliptic  = target_pos.ecliptic().au
+        diff_sat_target = sat_ecliptic  - target_ecliptic
+        diff_target_body = target_ecliptic - test_body_ecliptic
+        #Using cross product formula of
+        #https://mathworld.wolfram.com/Point-LineDistance3-Dimensional.html
+        #to determine minimum perpendicular distance between line of sight
+        #and a third position (the occulting body's center)
+        cross = numpy.cross(diff_sat_target,diff_target_body)
+        lcross = numpy.sqrt(numpy.dot(cross,cross))
+        perp_dist = lcross / numpy.sqrt(numpy.dot(diff_sat_target,diff_sat_target))
+        l_sat_target = numpy.sqrt(numpy.dot(diff_sat_target,diff_sat_target))
+        l_target_body = numpy.sqrt( numpy.dot(diff_target_body,diff_target_body))
+        #Note I am not sure if there is a function for a planetary body's radius like I allude to 
+        #below. Note that the return is True of occultation occurs and False if the LOS is clear
+        #The alt_limit argument lets you restrict to a region larger than the planetary body's radius itself   
+        return ( (perp_dist < (dist_limit / AU_KM ) ) and (l_sat_target > l_target_body) )
+
+
 
 _second = 1.0 / (24.0 * 60.0 * 60.0)
 
