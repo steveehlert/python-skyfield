@@ -4,6 +4,7 @@
 from numpy import (
     array, concatenate, cross, einsum, identity, ones_like, repeat, zeros_like, dot, sqrt
 )
+import numpy as np
 from sgp4.api import SGP4_ERRORS, Satrec
 
 from .constants import AU_KM, DAY_S, T0, tau, ERAD
@@ -12,6 +13,7 @@ from .positionlib import ITRF_to_GCRS2
 from .searchlib import _find_discrete, find_maxima
 from .timelib import Timescale
 from .vectorlib import VectorFunction
+from skyfield.functions import length_of
 _minutes_per_day = 1440.
 
 # Since satellite calculations are done entirely in UTC, we can display
@@ -294,6 +296,33 @@ class EarthSatellite(VectorFunction):
         #below. Note that the return is True of occultation occurs and False if the LOS is clear
         #Yhr dist_limit argument allows for distances larger than the planetary radius itself to be used
         return ( (dist_perp < (dist_limit / AU_KM ) ) and (ttt > 0) )
+
+
+    def intersect_line_with_sphere(self,ut, target_pos, test_body, dist_limit = ERAD/1000. + 200.): 
+        """Compute distance to the nearest intersection of a line with a sphere.
+        
+        line_endpoint: NumPy array giving a point on a line starting at the origin.
+        sphere_origin: NumPy array giving the center of the sphere.
+        sphere_radius: Float giving the sphere radius.
+        """
+        
+        sat_origin_pos = test_body.at(ut)
+        sat_ecliptic = sat_origin_pos.ecliptic_position().au +   self.at(ut).ecliptic_position().au
+        test_body_ecliptic = test_body.at(ut).ecliptic_position().au 
+        target_ecliptic  = target_pos.ecliptic_position().au
+
+        line_endpoint = target_ecliptic - sat_ecliptic
+        sphere_center = test_body_ecliptic - sat_ecliptic
+        sphere_radius = dist_limit / AU_KM
+
+        
+        unit = line_endpoint / length_of(line_endpoint)
+        b = -2.0 * (unit * sphere_center).sum()
+        c = (sphere_center * sphere_center).sum() - sphere_radius * sphere_radius
+
+        discriminant = b * b - 4 * c
+        return np.nan if discriminant < 0 else (max(-b - np.sqrt(discriminant), -b + np.sqrt(discriminant)) / 2.0)
+
 
 
 _second = 1.0 / (24.0 * 60.0 * 60.0)
