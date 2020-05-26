@@ -247,7 +247,7 @@ class EarthSatellite(VectorFunction):
         i = jd.argsort()
         return ts.tt_jd(jd[i]), v[i]
 
-    def is_target_occulted(self, ut, target_pos, test_body_name, ephemfile = 'de421.bsp', dist_limit = ERAD/1000. + 200.):
+    def is_target_occulted(self, ut, target_pos, test_body, dist_limit = ERAD/1000. + 200.):
         """Returns a True/False as to whether or not the 
         line of sight between the satellite position and a target position of interest
         is occulted by a planetary body. Originally written to account for 
@@ -259,10 +259,6 @@ class EarthSatellite(VectorFunction):
         """
 
 
-        ephemdata = apiload(ephemfile)
-        
-        
-        test_body = ephemdata[test_body_name]
         sat_origin_pos = test_body.at(ut)
         sat_ecliptic = sat_origin_pos.ecliptic_position().au +   self.at(ut).ecliptic_position().au
         test_body_ecliptic = test_body.at(ut).ecliptic_position().au 
