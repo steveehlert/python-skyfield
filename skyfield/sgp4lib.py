@@ -2,7 +2,7 @@
 """An interface between Skyfield and the Python ``sgp4`` library."""
 
 from numpy import (
-    array, concatenate, cross, einsum, identity, ones_like, repeat, zeros_like
+    array, concatenate, cross, einsum, identity, ones_like, repeat, zeros_like, dot, sqrt
 )
 from sgp4.api import SGP4_ERRORS, Satrec
 
@@ -12,7 +12,6 @@ from .positionlib import ITRF_to_GCRS2
 from .searchlib import _find_discrete, find_maxima
 from .timelib import Timescale
 from .vectorlib import VectorFunction
-from .api import load as apiload
 _minutes_per_day = 1440.
 
 # Since satellite calculations are done entirely in UTC, we can display
@@ -262,28 +261,43 @@ class EarthSatellite(VectorFunction):
 
         ephemdata = apiload(ephemfile)
         
-        sat_origin_pos = ephemdata['earth'].at(ut)
-        test_body = ephemdata[test_body_name]
         
+        test_body = ephemdata[test_body_name]
+        sat_origin_pos = test_body.at(ut)
         sat_ecliptic = sat_origin_pos.ecliptic_position().au +   self.at(ut).ecliptic_position().au
         test_body_ecliptic = test_body.at(ut).ecliptic_position().au 
         target_ecliptic  = target_pos.ecliptic_position().au
-        diff_sat_target = sat_ecliptic  - target_ecliptic
-        diff_target_body = target_ecliptic - test_body_ecliptic
-        #Using cross product formula of
-        #https://mathworld.wolfram.com/Point-LineDistance3-Dimensional.html
-        #to determine minimum perpendicular distance between line of sight
-        #and a third position (the occulting body's center)
-        cross = numpy.cross(diff_sat_target,diff_target_body)
-        lcross = numpy.sqrt(numpy.dot(cross,cross))
-        perp_dist = lcross / numpy.sqrt(numpy.dot(diff_sat_target,diff_sat_target))
-        l_sat_target = numpy.sqrt(numpy.dot(diff_sat_target,diff_sat_target))
-        l_target_body = numpy.sqrt( numpy.dot(diff_target_body,diff_target_body))
+        
+        
+        diff_body_sat = test_body_ecliptic - sat_ecliptic
+        l_body_sat = sqrt(dot(diff_body_sat,diff_body_sat))
+
+        diff_body_targ = test_body_ecliptic - target_ecliptic
+        l_body_targ = sqrt(dot(diff_body_targ,diff_body_targ))
+            
+        diff_targ_sat = target_ecliptic - sat_ecliptic
+        l_targ_sat = sqrt(dot(diff_targ_sat, diff_targ_sat))
+
+
+        #This is the (x0-x1) X ( x0-x2) version of the min dist formula
+        crossprod = cross(diff_body_sat,diff_body_targ)
+
+        lcross = sqrt(dot(crossprod,crossprod))
+
+        dist_perp = lcross / l_targ_sat
+
+        #Floating point precision is an issue for this calculation since the
+        # diff_body_sat << diff_body_targ. When target is at a default
+        #distance of 1 Gpc
+        #So we actually calculate the value
+        # of the parameter t where it reaches minimum distance.
+    
+        ttt = -1.* dot( -1. * diff_body_sat, diff_targ_sat) / l_targ_sat**2
+        
         #Note I am not sure if there is a function for a planetary body's radius like I allude to 
         #below. Note that the return is True of occultation occurs and False if the LOS is clear
-        #The alt_limit argument lets you restrict to a region larger than the planetary body's radius itself   
-        return ( (perp_dist < (dist_limit / AU_KM ) ) and (l_sat_target > l_target_body) )
-
+        #Yhr dist_limit argument allows for distances larger than the planetary radius itself to be used
+        return ( (dist_perp < (dist_limit / AU_KM ) ) and (ttt > 0) )
 
 
 _second = 1.0 / (24.0 * 60.0 * 60.0)
